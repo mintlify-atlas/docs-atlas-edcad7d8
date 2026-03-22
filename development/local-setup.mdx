@@ -252,6 +252,7 @@ The dev Compose file sets the following environment variables by default:
 | Variable | Dev default | Description |
 | --- | --- | --- |
 | `DEBUG` | `True` | Enables Django debug mode |
+| `APP_PORT` | `8080` | Port the gunicorn server binds to inside the container |
 | `API_ROOT` | `http://localhost:8081/v1` | URL of the API service |
 | `URL_PREFIX` | `` (empty) | Subpath prefix if serving under a path like `/peermetrics` |
 | `DEFAULT_ADMIN_PASSWORD` | `admin` | Must match the API service value for password-change detection |

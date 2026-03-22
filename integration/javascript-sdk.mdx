@@ -7,17 +7,25 @@ The [Peermetrics JavaScript SDK](https://github.com/peermetrics/sdk-js) collects
 
 ## Installation
 
+Install the SDK from npm:
+
 <CodeGroup>
 
 ```bash npm
 npm install @peermetrics/sdk
 ```
 
-```html CDN
-<script src="https://cdn.peermetrics.io/js/sdk/peermetrics.min.js"></script>
+```bash yarn
+yarn add @peermetrics/sdk
+```
+
+```bash pnpm
+pnpm add @peermetrics/sdk
 ```
 
 </CodeGroup>
+
+For other installation methods (CDN, UMD bundle), refer to the [SDK repository](https://github.com/peermetrics/sdk-js).
 
 ## Initialization
 
@@ -96,7 +104,7 @@ await peerMetrics.endConference()
 
 The SDK integrates with all major WebRTC frameworks and custom implementations.
 
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card title="Livekit" icon="circle-play">
     Use the SDK alongside the Livekit client SDK to monitor rooms and participant connections.
   </Card>
@@ -109,7 +117,7 @@ The SDK integrates with all major WebRTC frameworks and custom implementations.
   <Card title="Custom WebRTC" icon="code">
     Works with any application that creates `RTCPeerConnection` objects directly.
   </Card>
-</Columns>
+</CardGroup>
 
 For framework-specific integration guides and advanced configuration options, see the [SDK repository on GitHub](https://github.com/peermetrics/sdk-js).
 
