@@ -1,0 +1,101 @@
+{
+  "projectType": "saas",
+  "projectName": "Peermetrics",
+  "projectDescription": "A self-hosted WebRTC monitoring system that collects, ingests, and visualizes real-time call metrics to help developers troubleshoot issues and optimize performance.",
+  "theme": "palm",
+  "primaryColor": "#040404",
+  "lightColor": "#acb4bc",
+  "darkColor": "#258ce0",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "how-it-works"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/overview",
+              "deployment/docker",
+              "deployment/kubernetes",
+              "deployment/google-app-engine"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/javascript-sdk",
+              "integration/api-key"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/authentication",
+              "configuration/rate-limiting"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/db-migrations",
+              "operations/dummy-data",
+              "operations/admin-panel"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/local-setup",
+              "development/testing"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/faq",
+              "reference/architecture"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "App-level dashboard with browser, OS, and location breakdowns",
+    "Automatic detection of WebRTC connection issues",
+    "Detailed per-participant reports with device info and timeline",
+    "Drilldown connection timelines for the full duration of a call",
+    "Self-hosted: full control over data and infrastructure",
+    "Separate scalable API (ingestion) and Web (visualization) services",
+    "JavaScript SDK integration with Livekit, Mediasoup, Janus, and custom WebRTC",
+    "Docker Compose and Kubernetes deployment support",
+    "Google App Engine deployment option",
+    "POST_CONFERENCE_CLEANUP flag to manage storage efficiently"
+  ],
+  "publicApiSurface": [
+    "POST /v1 — metrics ingestion endpoint (used by JS SDK)",
+    "PeerMetrics({ apiRoot, apiKey, userId, userName, conferenceId, conferenceName, appVersion }) — JS SDK constructor",
+    "DEFAULT_ADMIN_USERNAME env var — customize admin username",
+    "DEFAULT_ADMIN_PASSWORD env var — customize admin password (api + web)",
+    "DEFAULT_ADMIN_EMAIL env var — customize admin email",
+    "INIT_TOKEN_SECRET env var — JWT token secret",
+    "SESSION_TOKEN_SECRET env var — session cookie encryption key",
+    "API_ROOT env var — URL of the API service for the web service",
+    "WEB_DOMAIN env var — domain of the web service",
+    "REDIS_HOST env var — Redis connection URL",
+    "POST_CONFERENCE_CLEANUP env var — delete stats events after conference ends",
+    "URL_PREFIX env var — subpath prefix for serving under a non-root path",
+    "docker compose up — start all services",
+    "docker compose -f docker-compose.dev.yaml up — start in development mode",
+    "kubectl apply -k k8s/overlays/<env> — deploy to Kubernetes"
+  ]
+}
