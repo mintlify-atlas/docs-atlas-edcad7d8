@@ -1,0 +1,40 @@
+---
+title: "Deployment overview"
+description: "Choose the right deployment method for your Peermetrics instance."
+---
+
+Peermetrics consists of two independently deployable services:
+
+- **API service** (`peermetrics/api`) — ingests metrics from the JavaScript SDK
+- **Web service** (`peermetrics/web`) — serves the monitoring dashboard
+
+Both images are published to Docker Hub and can be deployed together or separately, depending on your scaling requirements. The reason for separating the two services is that they have different scaling needs: the API handles high-frequency metric writes, while the web service handles lower-volume dashboard traffic.
+
+## Prerequisites
+
+All deployment methods require:
+
+- **Docker** 20.10 or later (for Docker-based deployments)
+- **PostgreSQL** database with the `pg_trgm` extension enabled
+- **Redis** for caching and session storage
+
+## Docker Hub images
+
+| Image | Purpose |
+|-------|---------|
+| `peermetrics/api:latest` | Metric ingestion endpoint (Django) |
+| `peermetrics/web:latest` | Visualization dashboard (Django + VueJS) |
+
+## Deployment options
+
+<CardGroup cols={3}>
+  <Card title="Docker Compose" icon="docker" href="/deployment/docker">
+    Single-server or split deployments using Docker Compose. Includes nginx, PostgreSQL, and Redis out of the box.
+  </Card>
+  <Card title="Kubernetes" icon="server" href="/deployment/kubernetes">
+    Production-grade deployment with Kustomize overlays. Supports independent scaling of API and web services.
+  </Card>
+  <Card title="Google App Engine" icon="cloud" href="/deployment/google-app-engine">
+    Deploy each service as a separate App Engine service using the provided `app_engine.yaml` files.
+  </Card>
+</CardGroup>

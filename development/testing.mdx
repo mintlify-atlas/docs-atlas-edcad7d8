@@ -1,0 +1,157 @@
+---
+title: 'Testing your integration'
+description: Use the built-in WebRTC test tool to verify your Peermetrics setup
+---
+
+Peermetrics ships with a standalone WebRTC test tool that lets you verify your setup end-to-end — from the API endpoint to the dashboard — without building a full application integration. The tool establishes a real WebRTC peer-to-peer connection and sends metrics to your running Peermetrics instance.
+
+## Test tool features
+
+- WebRTC peer-to-peer connection between two in-page peer connections
+- Real-time status indicators (connecting, active, stopped)
+- Detailed event log with timestamps
+- Local and remote video preview
+- Automatic PeerMetrics SDK integration
+- Graceful fallback to audio-only, video-only, or data-channel-only when media devices are unavailable
+- No build step — pure HTML and JavaScript
+
+## Running the test
+
+<Steps>
+  <Step title="Start Peermetrics">
+    Start all services with Docker Compose:
+
+    ```bash
+    docker compose up
+    ```
+
+    Both the `api` service (port 8081) and the `web` service (port 8080) must be running before you open the test tool.
+  </Step>
+
+  <Step title="Get an API key">
+    1. Open the dashboard at `http://localhost:8080`.
+    2. Log in with the default credentials (`admin` / `admin`).
+    3. Create an organization and an app.
+    4. Copy the API key from the app dashboard.
+  </Step>
+
+  <Step title="Open the test tool">
+    The test tool is served automatically by nginx. Navigate to:
+
+    ```text
+    http://localhost:8080/test/webrtc-test.html
+    ```
+
+    No additional setup is required — the file is included in the nginx volume mount.
+  </Step>
+
+  <Step title="Configure the test tool">
+    Fill in the configuration fields:
+
+    | Field | Value |
+    | --- | --- |
+    | **API Root** | `http://localhost:8081/v1` |
+    | **API Key** | Paste the key you copied from the dashboard |
+    | **User ID** | Any identifier (default: `test-user-1`) |
+    | **User Name** | Any display name (default: `Test User`) |
+    | **Conference ID** | Any identifier (default: `test-conference-1`) |
+    | **Conference Name** | Any name (default: `Test Call`) |
+    | **App Version** | Any version string (default: `1.0.0`) |
+
+    The API Root must end with `/v1`.
+  </Step>
+
+  <Step title="Start the test call">
+    Click **Start Test Call**.
+
+    When prompted, allow camera and microphone access. The tool will:
+
+    1. Initialize the PeerMetrics SDK with your configuration.
+    2. Request media from your camera and microphone.
+    3. Create two in-page `RTCPeerConnection` objects and connect them.
+    4. Register the local peer connection with PeerMetrics for monitoring.
+    5. Begin collecting and sending WebRTC stats to the API.
+
+    The status indicator turns green and shows **Call Active - Metrics being collected** when everything is working.
+  </Step>
+
+  <Step title="Watch the logs">
+    The log panel at the bottom of the page shows real-time status updates. A successful start produces output similar to:
+
+    ```text
+    [12:00:01] WebRTC test tool ready. Configure settings and click "Start Test Call"
+    [12:00:05] Starting test call...
+    [12:00:05] Initializing PeerMetrics...
+    [12:00:05] PeerMetrics initialized successfully!
+    [12:00:05] Requesting user media (video + audio)...
+    [12:00:06] Got user media (video + audio)
+    [12:00:06] Peer connections created
+    [12:00:06] Creating offer...
+    [12:00:06] Offer created
+    [12:00:06] Set remote description
+    [12:00:06] Answer created
+    [12:00:06] Call established!
+    [12:00:06] Added local peer connection to PeerMetrics
+    ```
+  </Step>
+
+  <Step title="View metrics in the dashboard">
+    While the call is active, open a new browser tab and go to:
+
+    ```text
+    http://localhost:8080
+    ```
+
+    Navigate to your app dashboard. You should see the test conference and participant data populating in real time.
+  </Step>
+
+  <Step title="Stop the call">
+    Click **Stop Call** when you are done. This closes the peer connections, stops the media tracks, and calls `endConference()` on the PeerMetrics SDK to close the conference record in the database.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="WebRTC not supported">
+    The test tool requires a browser that supports the WebRTC APIs (`RTCPeerConnection` and `navigator.mediaDevices.getUserMedia`).
+
+    Use a current version of Chrome, Firefox, Safari, or Edge. The log panel will show `WebRTC is not supported in this browser` if the APIs are unavailable.
+  </Accordion>
+
+  <Accordion title="Failed to initialize PeerMetrics">
+    This error means the SDK could not reach the API endpoint or rejected the API key. Check the following:
+
+    - The API service is running on port 8081. Confirm with:
+      ```bash
+      docker compose ps
+      ```
+    - The API Root field is set to `http://localhost:8081/v1` (it must end with `/v1`).
+    - The API key is correct. Copy it directly from the app dashboard.
+    - Open your browser's developer tools and check the **Console** tab for CORS errors. A CORS error means the API service is reachable but is rejecting the request origin.
+  </Accordion>
+
+  <Accordion title="No video">
+    The browser denied access to your camera or microphone. To fix this:
+
+    - Click the lock icon in your browser's address bar and allow camera and microphone access.
+    - Check your operating system's privacy settings to confirm the browser is allowed to use media devices.
+
+    The test tool will fall back to audio-only, video-only, or a data-channel-only connection if one device is unavailable. It will still collect connection metrics without media tracks.
+  </Accordion>
+
+  <Accordion title="Connection fails">
+    If the call does not reach the **Call Active** state:
+
+    - Confirm both `api` and `web` services are running:
+      ```bash
+      docker compose ps
+      ```
+    - Check the Docker Compose logs for startup errors:
+      ```bash
+      docker compose logs api
+      docker compose logs web
+      ```
+    - Ensure ports 8080 and 8081 are not occupied by another process on your machine.
+  </Accordion>
+</AccordionGroup>

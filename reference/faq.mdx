@@ -1,0 +1,91 @@
+---
+title: 'FAQ'
+description: Frequently asked questions about Peermetrics
+---
+
+<AccordionGroup>
+  <Accordion title="Why PostgreSQL for data storage?">
+    PostgreSQL is well-suited for the Peermetrics workload. It is a widely understood technology, cheap to scale vertically, and has broad operational tooling support.
+
+    The Peermetrics team uses PostgreSQL in production and has found it handles the conference metrics workload without issue. The WebRTC stats data is structured and relational by nature, which maps well to a relational database.
+
+    If your deployment reaches a point where PostgreSQL is the bottleneck, reach out to [WebRTC.ventures](https://webrtc.ventures/) — they offer managed service and custom implementations for high-scale deployments.
+  </Accordion>
+
+  <Accordion title="What does the POST_CONFERENCE_CLEANUP flag do?">
+    The `POST_CONFERENCE_CLEANUP` environment variable controls whether raw `stats` events are deleted after a conference ends.
+
+    During a conference, the `GenericEvent` model accumulates a large number of `stats` events — per-second WebRTC statistics from each participant. When the conference ends, Peermetrics processes these events and generates a summary. After the summary is created, the individual `stats` events are no longer needed.
+
+    Setting `POST_CONFERENCE_CLEANUP=True` deletes these events once the summary is generated, which reduces PostgreSQL storage consumption significantly in high-volume deployments.
+
+    The flag is set to `True` in `docker-compose.yaml` (production) and `False` in `docker-compose.dev.yaml` (development) so raw events are preserved during development.
+  </Accordion>
+
+  <Accordion title="How do I change my admin password?">
+    See [Authentication](/configuration/authentication) for the full walkthrough, including environment variable configuration for production deployments.
+
+    In brief:
+
+    - Log in at `http://localhost:8080/login` with your current credentials. If you are using the default password, you will be automatically redirected to the password change page.
+    - Navigate to `/change-password` at any time while logged in.
+  </Accordion>
+
+  <Accordion title="Can I deploy the API and web services separately?">
+    Yes. The `api` and `web` services are fully independent Django applications. They share a PostgreSQL database and Redis instance, but they have different scaling characteristics:
+
+    - **`api`** handles metric ingestion from SDK clients. Its load scales with the number of concurrent WebRTC participants sending data.
+    - **`web`** handles dashboard requests from your team. Its load is typically much lower and more predictable.
+
+    Deploying them separately lets you scale each service independently. Docker Hub images are available for both:
+
+    - `peermetrics/api`
+    - `peermetrics/web`
+  </Accordion>
+
+  <Accordion title="Which WebRTC libraries does the SDK support?">
+    The [JavaScript SDK](https://github.com/peermetrics/sdk-js) integrates with the major WebRTC libraries:
+
+    - Livekit
+    - Mediasoup
+    - Janus
+    - Custom `RTCPeerConnection` implementations
+
+    See the [SDK repository](https://github.com/peermetrics/sdk-js) for integration instructions and library-specific adapters.
+  </Accordion>
+
+  <Accordion title="How do I run database migrations?">
+    See [Database migrations](/operations/db-migrations) for the full reference.
+
+    The short version for Docker Compose:
+
+    ```bash
+    docker compose run api python manage.py migrate
+    ```
+
+    When using the development Compose file, migrations run automatically on startup.
+  </Accordion>
+
+  <Accordion title="What happens if I lose admin access?">
+    You can recover access directly from the `api` container:
+
+    ```bash
+    # Enter the API container
+    docker compose exec api sh
+
+    # Create a new superuser
+    python manage.py createsuperuser
+
+    # Or reset the password for the existing admin account
+    python manage.py changepassword admin
+    ```
+
+    The `createsuperuser` command will prompt you for a username, email, and password. The `changepassword` command accepts the username and prompts for the new password.
+  </Accordion>
+
+  <Accordion title="Is there a managed or hosted version?">
+    Yes. [WebRTC.ventures](https://webrtc.ventures/) offers a managed Peermetrics service as well as custom implementations for organizations that prefer to focus on their core application rather than managing the infrastructure themselves.
+
+    The self-hosted version remains fully open source under the license in this repository.
+  </Accordion>
+</AccordionGroup>

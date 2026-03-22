@@ -1,0 +1,103 @@
+---
+title: "Deploy on Google App Engine"
+description: "Deploy the Peermetrics API and web services as separate Google App Engine services."
+---
+
+Peermetrics can be deployed to [Google App Engine](https://cloud.google.com/appengine) by deploying each service independently. Both the `api` and `web` repositories contain an `app_engine.yaml` file that configures the App Engine service.
+
+<Note>
+  The `app_engine.yaml` files live in the individual service repositories, not in the main `peermetrics/peermetrics` repository. Find them at:
+
+  - API: [github.com/peermetrics/api](https://github.com/peermetrics/api)
+  - Web: [github.com/peermetrics/web](https://github.com/peermetrics/web)
+</Note>
+
+## Prerequisites
+
+- A Google Cloud project with App Engine enabled
+- The [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) (`gcloud`) installed and authenticated
+- A PostgreSQL database accessible from App Engine (e.g. Cloud SQL)
+- A Redis instance accessible from App Engine (e.g. Memorystore)
+
+## Overview
+
+Because Peermetrics splits ingestion (API) and visualization (web) into two services, both must be deployed separately to App Engine. Each deployment reads its configuration from environment variables defined in the respective `app_engine.yaml`.
+
+## Deployment steps
+
+<Steps>
+  <Step title="Clone the service repositories">
+    ```bash
+    git clone https://github.com/peermetrics/api
+    git clone https://github.com/peermetrics/web
+    ```
+  </Step>
+
+  <Step title="Configure the API service">
+    Edit `api/app_engine.yaml` to set your environment variables. At minimum, configure the database connection, Redis, and the secret values:
+
+    - `SECRET_KEY` — Django secret key
+    - `INIT_TOKEN_SECRET` — used to generate JWT tokens
+    - `SESSION_TOKEN_SECRET` — used to encrypt session cookies
+    - `DEFAULT_ADMIN_PASSWORD` — password for the auto-created admin account
+    - `DATABASE_HOST`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`
+    - `REDIS_HOST`
+    - `WEB_DOMAIN` — the domain where the web service will be accessible
+
+    <Warning>
+      Do not commit production secrets to version control. Use [App Engine environment variables](https://cloud.google.com/appengine/docs/standard/reference/app-yaml) or Secret Manager references instead.
+    </Warning>
+  </Step>
+
+  <Step title="Deploy the API service">
+    ```bash
+    cd api
+    gcloud app deploy app_engine.yaml
+    ```
+  </Step>
+
+  <Step title="Configure the web service">
+    Edit `web/app_engine.yaml` and set:
+
+    - `SECRET_KEY`
+    - `DEFAULT_ADMIN_PASSWORD` — must match the value set in the API service
+    - `API_ROOT` — the public URL of your deployed API service, ending with `/v1`
+    - `DATABASE_HOST`, `DATABASE_USER`, `DATABASE_PASSWORD`, `DATABASE_NAME`
+  </Step>
+
+  <Step title="Deploy the web service">
+    ```bash
+    cd web
+    gcloud app deploy app_engine.yaml
+    ```
+  </Step>
+
+  <Step title="Run database migrations">
+    After the API service is deployed, run the Django migrations. You can trigger this via the App Engine console, a Cloud Run job, or by using App Engine's built-in task queue.
+
+    If the `api` service exposes a management endpoint, you can also open a shell via Cloud Shell and run:
+
+    ```bash
+    gcloud app instances ssh <instance-id> --service=api --version=<version>
+    # inside the instance:
+    python manage.py migrate
+    ```
+  </Step>
+</Steps>
+
+## Optional Google Cloud integrations
+
+The API service supports optional integrations that are useful when running on Google Cloud. Enable them by setting the following environment variables in `app_engine.yaml`:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `USE_GOOGLE_CLOUD_LOGGING` | `True` | Route Django logs to Google Cloud Logging |
+| `USE_GOOGLE_TASK_QUEUE` | `True` | Use Cloud Tasks instead of local task processing |
+| `GOOGLE_TASK_QUEUE_NAME` | e.g. `queue-1` | Name of the Cloud Tasks queue |
+| `APP_ENGINE_LOCATION` | e.g. `us-east1` | App Engine region for Cloud Tasks |
+| `TASK_QUEUE_DOMAIN` | e.g. `https://api.example.com/` | Domain used when enqueuing tasks |
+
+## Next steps
+
+- See [Configuration: environment variables](/configuration/environment-variables) for the full list of variables accepted by each service.
+- See [Authentication](/configuration/authentication) for guidance on securing admin credentials before your first deployment.

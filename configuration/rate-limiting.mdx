@@ -1,0 +1,28 @@
+---
+title: "Rate limiting"
+description: "Built-in brute-force protection for the Peermetrics login endpoint."
+---
+
+Peermetrics includes rate limiting on the login endpoint to protect against brute-force attacks. This is handled by the [`django-ratelimit`](https://django-ratelimit.readthedocs.io/) library.
+
+## How it works
+
+The login endpoint enforces a limit of **5 attempts per 5 minutes per IP address**. When a client exceeds this limit, the server returns an error response and the login page displays the message:
+
+> Too many login attempts. Please try again in a few minutes.
+
+The rate limit resets automatically after 5 minutes have elapsed since the first failed attempt in the current window.
+
+## Scope
+
+Rate limiting applies to the login endpoint only. All other endpoints in the web service and the API ingestion endpoints are not affected.
+
+<Note>
+  Rate limiting is enforced per IP address. If multiple users share the same public IP (for example, behind a corporate NAT or a VPN), their attempts are counted together against the same limit. In such environments, a single user exceeding the limit may temporarily block others on the same network from logging in.
+</Note>
+
+## Implementation
+
+The rate limiting is implemented with `django-ratelimit` and requires no additional configuration. It is active by default in all deployments.
+
+If you need to adjust the rate limit thresholds or exempt certain IP ranges, you would need to modify the web service source code directly. There are no environment variables to configure rate limiting at this time.

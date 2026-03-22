@@ -1,0 +1,89 @@
+---
+title: "Managing API keys"
+description: "Create and manage API keys for your Peermetrics apps"
+---
+
+Every Peermetrics app has a unique API key. The JavaScript SDK uses this key to authenticate metrics it sends to your API service. You generate API keys from the web dashboard by creating an organization and app.
+
+## What an API key does
+
+When you initialize the JavaScript SDK, you pass the API key in the constructor. The SDK includes this key in every request it sends to the ingestion API. The API service uses the key to:
+
+- Identify which app the metrics belong to
+- Validate that the request is authorized
+- Associate data with the correct organization in the dashboard
+
+<Warning>
+  API keys are included in your frontend JavaScript code and are visible to anyone who inspects your page source. This is expected — the key is scoped to metrics ingestion only and cannot be used to read or modify data. Even so, avoid committing API keys to public repositories, and rotate them if you believe they have been misused.
+</Warning>
+
+## Creating an API key
+
+<Steps>
+  <Step title="Log in to the web dashboard">
+    Open the Peermetrics web dashboard in your browser and log in.
+
+    For a local deployment, the dashboard is at **[http://localhost:8080](http://localhost:8080)**.
+
+    Use your admin credentials. If this is a fresh install, the defaults are `admin` / `admin`.
+  </Step>
+
+  <Step title="Create an organization">
+    Organizations are top-level containers that group your apps together.
+
+    From the dashboard, create a new organization. Give it a name that reflects your company or team.
+  </Step>
+
+  <Step title="Create an app">
+    Inside the organization, create a new app. An app represents a single WebRTC application or deployment environment.
+
+    Choose a descriptive name — for example, **Production**, **Staging**, or the name of your product.
+  </Step>
+
+  <Step title="Copy the API key">
+    After the app is created, the dashboard displays an automatically generated API key.
+
+    Copy the key — you will use it when initializing the JavaScript SDK.
+  </Step>
+
+  <Step title="Use the key in the SDK">
+    Pass the API key as the `apiKey` parameter when creating a `PeerMetrics` instance:
+
+    ```javascript
+    let peerMetrics = new PeerMetrics({
+        apiRoot: 'https://api.example.com/v1',
+        apiKey: '7090df95cd247f4aa735779636b202',
+        userId: '1234',
+        userName: 'My user',
+        conferenceId: 'conference-1',
+        conferenceName: 'Conference from 4pm',
+        appVersion: '1.0.1'
+    })
+    ```
+
+    See [JavaScript SDK](/integration/javascript-sdk) for the full list of constructor parameters.
+  </Step>
+</Steps>
+
+## Multiple apps and environments
+
+Each app gets its own independent API key. You can create as many apps as you need within an organization.
+
+<Note>
+  Create separate apps for each environment — for example, one app for **production** and another for **staging**. This keeps test traffic out of your production metrics and lets you compare behavior across environments independently.
+</Note>
+
+Typical patterns:
+
+- One app per deployment environment (production, staging, development)
+- One app per product or service if you run multiple WebRTC applications
+- One app per customer if you offer white-labeled WebRTC to multiple tenants
+
+## Key security
+
+| Practice | Recommendation |
+|---|---|
+| Committing to version control | Avoid committing keys to public repositories |
+| Scope | Keys are write-only for metrics ingestion — they cannot read dashboard data |
+| Rotation | If a key is compromised, create a new app and update your SDK configuration |
+| Environment separation | Use different keys for production and non-production environments |

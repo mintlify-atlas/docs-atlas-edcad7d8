@@ -1,0 +1,91 @@
+---
+title: "Authentication"
+description: "Managing admin access to your Peermetrics instance."
+---
+
+Peermetrics includes a built-in authentication system. A default admin account is created automatically on first startup so you can access the dashboard immediately, with safeguards in place to help you secure it before going to production.
+
+## Default credentials
+
+When the API service starts for the first time, it creates a default admin account:
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin` |
+
+You can log in to the dashboard at `http://localhost:8080/login` using these credentials.
+
+<Warning>
+  The default password is intentionally weak. You will be prompted to change it on first login, and you must change it before exposing your instance to the internet.
+</Warning>
+
+## Changing the default password
+
+Peermetrics detects when you are using the default password and guides you through changing it.
+
+<Steps>
+  <Step title="Log in with default credentials">
+    Navigate to `http://localhost:8080/login` and sign in with username `admin` and password `admin`.
+  </Step>
+
+  <Step title="Follow the redirect">
+    After logging in with the default password, you are automatically redirected to the password change page. A security warning is displayed indicating that you are using the default password.
+  </Step>
+
+  <Step title="Enter a new password">
+    Enter your new password twice. Passwords must be at least 8 characters long and pass Django's built-in password validation.
+  </Step>
+
+  <Step title="Save the new password">
+    Click **Change Password**. You are redirected to the dashboard.
+  </Step>
+</Steps>
+
+You can also navigate directly to `/change-password` at any time while logged in to update your password.
+
+<Tip>
+  During development, you can click **Skip** on the password change page to proceed without changing the password. You will be prompted again on your next login.
+</Tip>
+
+## Recovering admin access
+
+If you are locked out of the admin account, you can reset it from inside the API container.
+
+```bash
+# Open a shell in the running API container
+docker compose exec api sh
+
+# Reset the password for the existing admin user
+python manage.py changepassword admin
+
+# Or create a new superuser from scratch
+python manage.py createsuperuser
+```
+
+## Customizing admin credentials via environment variables
+
+For production deployments, set the admin credentials using environment variables before the first startup. The admin user is created only once (the operation is idempotent), so these values must be set before the initial launch.
+
+<Warning>
+  `DEFAULT_ADMIN_PASSWORD` must be identical in both the API and web services. The web service uses this value to detect when a user is still logging in with the default password.
+</Warning>
+
+```yaml
+services:
+  api:
+    image: peermetrics/api:latest
+    environment:
+      DEFAULT_ADMIN_USERNAME: "superadmin"
+      DEFAULT_ADMIN_PASSWORD: "MySecureP@ssw0rd123!"
+      DEFAULT_ADMIN_EMAIL: "admin@mycompany.com"
+      # ... other environment variables
+
+  web:
+    image: peermetrics/web:latest
+    environment:
+      DEFAULT_ADMIN_PASSWORD: "MySecureP@ssw0rd123!"  # Must match the API service value
+      # ... other environment variables
+```
+
+For the full list of environment variables for each service, see [Environment variables](/configuration/environment-variables).

@@ -1,97 +1,54 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Peermetrics"
+description: "WebRTC monitoring made easy — self-hosted, open source, and built for developers."
 ---
 
-## Setting up
+## WebRTC monitoring made easy
 
-Get your documentation site up and running in minutes.
+Peermetrics is a self-hosted WebRTC monitoring system that collects metrics from client devices, ingests them through a dedicated API service, and visualizes them in a rich dashboard — giving you the visibility you need to troubleshoot issues and deliver better real-time experiences.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Deploy Peermetrics and connect your first WebRTC app in minutes
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="How it works" icon="diagram-project" href="/how-it-works">
+    Understand the architecture: SDK, API service, and web dashboard
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Run Peermetrics with Docker Compose on any server
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="JavaScript SDK" icon="js" href="/integration/javascript-sdk">
+    Integrate with Livekit, Mediasoup, Janus, or custom WebRTC
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What you can monitor
 
-Everything you need to create world-class documentation.
+<CardGroup cols={3}>
+  <Card title="App dashboard" icon="chart-bar">
+    Browser, OS, and location breakdowns alongside automatically detected issues
+  </Card>
+  <Card title="Participant details" icon="user">
+    Per-participant reports with device info, connection method, and detected issues
+  </Card>
+  <Card title="Connection timelines" icon="timeline">
+    Full call lifecycle with bitrate, packet loss, jitter, and more
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Explore the docs
 
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="server" href="/deployment/overview">
+    Deploy via Docker, Kubernetes, or Google App Engine
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/environment-variables">
+    Configure environment variables for API and web services
+  </Card>
+  <Card title="Integration" icon="plug" href="/integration/javascript-sdk">
+    Connect the JavaScript SDK to your WebRTC application
+  </Card>
+  <Card title="FAQ" icon="circle-question" href="/reference/faq">
+    Common questions about Peermetrics
+  </Card>
+</CardGroup>

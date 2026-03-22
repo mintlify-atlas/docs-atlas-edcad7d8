@@ -1,0 +1,288 @@
+---
+title: "Deploy with Docker"
+description: "Run Peermetrics on a single server or across separate servers using Docker Compose."
+---
+
+Docker Compose is the recommended way to deploy Peermetrics. There are two scenarios depending on whether you want to run both services on the same host or on separate servers.
+
+<Warning>
+  Before going to production, change these values from their defaults in your compose file or `.env`:
+  `SECRET_KEY`, `DEFAULT_ADMIN_PASSWORD`, `INIT_TOKEN_SECRET`, and `SESSION_TOKEN_SECRET`. The defaults are intentionally weak and must not be used in production.
+</Warning>
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) 20.10 or later
+- [Docker Compose](https://docs.docker.com/compose/install/) v2 or later
+- The `peermetrics/peermetrics` repository cloned locally
+
+```bash
+git clone https://github.com/peermetrics/peermetrics
+cd peermetrics
+```
+
+## Scenario 1: Single-server deployment
+
+The `docker-compose.yaml` file at the root of the repository brings up all services on one host: nginx, API, web, PostgreSQL, and Redis.
+
+### Start all services
+
+```bash
+docker compose up -d
+```
+
+On first startup, the API container automatically runs database migrations and creates the default admin user (`admin` / `admin`).
+
+### Full docker-compose.yaml
+
+```yaml
+services:
+  nginx:
+    build: ./nginx
+
+    ports:
+      - 8080:8080
+      - 8081:8081
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - web_static:/app/web
+      - api_static:/app/api
+
+    depends_on:
+      - api
+      - web
+
+    restart: "on-failure"
+
+  web:
+    image: peermetrics/web:latest
+
+    command: "gunicorn web.wsgi:application --bind 0.0.0.0:8080 --log-level info"
+
+    volumes:
+      - web_static:/app/static
+
+    expose:
+      - 8080
+
+    environment:
+      DEBUG: "False"
+
+      DJANGO_SETTINGS_MODULE: "web.settings"
+      SECRET_KEY: "secret"
+
+      # Default admin password (used to detect default password on login)
+      # CHANGE THIS IN PRODUCTION!
+      DEFAULT_ADMIN_PASSWORD: "admin"
+
+      # where the API enpoint is located
+      API_ROOT: "http://localhost:8081/v1"
+
+      # URL prefix when serving under a subpath (e.g. "/peermetrics"); nginx must have matching locations
+      URL_PREFIX: ""
+
+      # DB config
+      DATABASE_HOST: "postgres"
+      DATABASE_PORT: "5432"
+      DATABASE_USER: "peeruser"
+      DATABASE_PASSWORD: "peeruser"
+      DATABASE_NAME: "peerdb"
+      CONN_MAX_AGE: "14400"
+
+    depends_on:
+      - postgres
+      - redis
+
+    restart: "on-failure"
+
+  api:
+    image: peermetrics/api:latest
+
+    volumes:
+      - api_static:/app/static
+
+    expose:
+      - 8081
+
+    environment:
+      DEBUG: "False"
+
+      DJANGO_SETTINGS_MODULE: "api.settings"
+      SECRET_KEY: "secret"
+
+      # Default admin credentials (auto-created on first startup)
+      # CHANGE THESE IN PRODUCTION!
+      DEFAULT_ADMIN_USERNAME: "admin"
+      DEFAULT_ADMIN_PASSWORD: "admin"
+      DEFAULT_ADMIN_EMAIL: "admin@admin.com"
+
+      # Used to generate the JWT token
+      # CHANGE THIS IN PRODUCTION
+      INIT_TOKEN_SECRET: "supersecret"
+
+      # used to encrypt the session cookie
+      # CHANGE THIS IN PRODUCTION
+      SESSION_TOKEN_SECRET: "secret"
+
+      WEB_DOMAIN: "localhost:8080"
+
+      # URL prefix when serving under a subpath (e.g. "/peermetrics"); nginx must have matching locations
+      URL_PREFIX: ""
+
+      # Redis config
+      REDIS_HOST: "redis://127.0.0.1:6379"
+
+      # DB config
+      DATABASE_HOST: "postgres"
+      DATABASE_PORT: "5432"
+      DATABASE_USER: "peeruser"
+      DATABASE_PASSWORD: "peeruser"
+      DATABASE_NAME: "peerdb"
+      CONN_MAX_AGE: "14400"
+
+      # if we should delete all the unneeded stats events after the conference ends
+      POST_CONFERENCE_CLEANUP: "True"
+
+    depends_on:
+      - postgres
+      - redis
+
+    restart: "on-failure"
+
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_PASSWORD: peeruser
+      POSTGRES_USER: peeruser
+      POSTGRES_DB: peerdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    restart: always
+
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - redis_data:/data
+    entrypoint: redis-server --appendonly yes
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  web_static:
+  api_static:
+```
+
+### nginx routing
+
+The bundled nginx configuration proxies incoming traffic to each service:
+
+| Port | Service | Notes |
+|------|---------|-------|
+| `8080` | `web` | Dashboard UI and static assets |
+| `8081` | `api` | Metric ingestion endpoint |
+
+Static files for each service are served directly by nginx via shared Docker volumes (`web_static` and `api_static`).
+
+### Environment variables
+
+See the tables below for all variables accepted by each service.
+
+#### API service
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEBUG` | `False` | Enable Django debug mode. Never set to `True` in production. |
+| `DJANGO_SETTINGS_MODULE` | `api.settings` | Django settings module. Do not change. |
+| `SECRET_KEY` | `secret` | Django secret key. **Change in production.** |
+| `DEFAULT_ADMIN_USERNAME` | `admin` | Username for the auto-created admin account. |
+| `DEFAULT_ADMIN_PASSWORD` | `admin` | Password for the auto-created admin account. **Change in production.** |
+| `DEFAULT_ADMIN_EMAIL` | `admin@admin.com` | Email for the auto-created admin account. |
+| `INIT_TOKEN_SECRET` | `supersecret` | Secret used to generate JWT tokens. **Change in production.** |
+| `SESSION_TOKEN_SECRET` | `secret` | Secret used to encrypt session cookies. **Change in production.** |
+| `WEB_DOMAIN` | `localhost:8080` | Domain where the web service is accessible. |
+| `URL_PREFIX` | _(empty)_ | URL subpath prefix (e.g. `/peermetrics`). nginx must have matching locations. |
+| `REDIS_HOST` | `redis://127.0.0.1:6379` | Redis connection URL. |
+| `DATABASE_HOST` | `postgres` | PostgreSQL hostname. |
+| `DATABASE_PORT` | `5432` | PostgreSQL port. |
+| `DATABASE_USER` | `peeruser` | PostgreSQL username. |
+| `DATABASE_PASSWORD` | `peeruser` | PostgreSQL password. |
+| `DATABASE_NAME` | `peerdb` | PostgreSQL database name. |
+| `CONN_MAX_AGE` | `14400` | Django database connection lifetime in seconds. |
+| `POST_CONFERENCE_CLEANUP` | `True` | Delete raw stats events after a conference ends to save storage. |
+
+#### Web service
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEBUG` | `False` | Enable Django debug mode. Never set to `True` in production. |
+| `DJANGO_SETTINGS_MODULE` | `web.settings` | Django settings module. Do not change. |
+| `SECRET_KEY` | `secret` | Django secret key. **Change in production.** |
+| `DEFAULT_ADMIN_PASSWORD` | `admin` | Must match `DEFAULT_ADMIN_PASSWORD` in the API service for default-password detection to work. **Change in production.** |
+| `API_ROOT` | `http://localhost:8081/v1` | Full URL of the API service, including the `/v1` path. |
+| `URL_PREFIX` | _(empty)_ | URL subpath prefix (e.g. `/peermetrics`). nginx must have matching locations. |
+| `DATABASE_HOST` | `postgres` | PostgreSQL hostname. |
+| `DATABASE_PORT` | `5432` | PostgreSQL port. |
+| `DATABASE_USER` | `peeruser` | PostgreSQL username. |
+| `DATABASE_PASSWORD` | `peeruser` | PostgreSQL password. |
+| `DATABASE_NAME` | `peerdb` | PostgreSQL database name. |
+| `CONN_MAX_AGE` | `14400` | Django database connection lifetime in seconds. |
+
+For the full environment variable reference see [Configuration: environment variables](/configuration/environment-variables).
+
+## Scenario 2: Separate API and web deployments
+
+When you need to run the API and web services on different servers, use the individual compose files.
+
+<Tabs>
+  <Tab title="API server">
+    Use `docker-compose.api.yaml` to deploy only the API service and its nginx proxy:
+
+    ```bash
+    docker compose -f docker-compose.api.yaml up -d
+    ```
+
+    This exposes the API on port `8081`. You still need a PostgreSQL database and Redis accessible from this host — update `DATABASE_HOST` and `REDIS_HOST` accordingly.
+  </Tab>
+  <Tab title="Web server">
+    Use `docker-compose.web.yaml` to deploy only the web service and its nginx proxy:
+
+    ```bash
+    docker compose -f docker-compose.web.yaml up -d
+    ```
+
+    This exposes the dashboard on port `8080`. Set `API_ROOT` to the public URL of your API service (e.g. `https://api.example.com/v1`).
+  </Tab>
+</Tabs>
+
+## Check service health
+
+Verify that all containers are running:
+
+```bash
+docker compose ps
+```
+
+Tail logs for a specific service:
+
+```bash
+docker compose logs -f api
+docker compose logs -f web
+```
+
+## Run database migrations manually
+
+If you need to apply migrations outside of the automatic startup process:
+
+```bash
+docker compose run api python manage.py migrate
+```

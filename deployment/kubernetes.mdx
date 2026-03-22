@@ -1,0 +1,264 @@
+---
+title: "Deploy on Kubernetes"
+description: "Deploy Peermetrics to a Kubernetes cluster using Kustomize overlays."
+---
+
+The `k8s/` directory in the Peermetrics repository contains production-ready Kubernetes manifests managed with Kustomize. You customize deployments by creating overlays on top of the shared base manifests.
+
+## What gets deployed
+
+| Resource | Kind | Notes |
+|----------|------|-------|
+| `api` | Deployment + Service | Django API on port 8081, 2 replicas by default |
+| `web` | Deployment + Service | Django web dashboard on port 8080, 2 replicas by default |
+| `postgres` | StatefulSet + Service | Custom image with `pg_trgm` enabled, 20Gi PVC |
+| `redis` | Deployment + Service | Append-only persistence, 10Gi PVC |
+| `peermetrics-ingress` | Ingress | ALB-annotated; routes `/v1` to API and `/` to web |
+| `peermetrics-migrate` | Job | Runs `migrate` and `collectstatic` on deploy |
+
+## Infrastructure requirements
+
+- **Kubernetes**: 1.24 or later
+- **Ingress controller**: AWS Load Balancer Controller (ALB) or another controller. The base manifests include ALB annotations.
+- **Persistent storage**:
+  - Postgres: ReadWriteOnce PVC, 20Gi minimum (e.g. EBS gp3)
+  - Redis: ReadWriteOnce PVC, 10Gi minimum (e.g. EBS gp3)
+- **Compute**: start with 2–3 general-purpose nodes (2 vCPU / 4–8Gi each) and scale as needed. You can optionally isolate Postgres and Redis on a dedicated node group.
+- **TLS**: terminate TLS at the Ingress or at an external edge (CloudFront or ALB).
+- **Secrets management**: Kubernetes Secrets are used by default. An external secret operator can be substituted.
+
+## Repository layout
+
+```
+k8s/
+├── base/                    # Generic, reusable manifests
+│   ├── api.yaml
+│   ├── web.yaml
+│   ├── postgres.yaml
+│   ├── ingress.yaml
+│   ├── migrate-job.yaml
+│   └── kustomization.yaml
+├── overlays/
+│   └── example/             # Example overlay with placeholder values
+│       ├── kustomization.yaml
+│       └── secrets.env.example
+└── scripts/
+    ├── build_push_image.sh
+    └── generate_secrets_env.sh
+```
+
+## Custom Postgres image
+
+The base `postgres.yaml` references a custom image that has the `pg_trgm` extension enabled. You must build this image and push it to your own registry before deploying:
+
+```bash
+# From the repository root
+bash k8s/scripts/build_push_image.sh
+```
+
+Then update the `images` section in your overlay's `kustomization.yaml` with your registry URL.
+
+## Kustomize workflow
+
+<Steps>
+  <Step title="Copy the example overlay">
+    ```bash
+    cp -R k8s/overlays/example k8s/overlays/your-env
+    ```
+  </Step>
+
+  <Step title="Update kustomization.yaml">
+    Edit `k8s/overlays/your-env/kustomization.yaml`. At minimum, update:
+
+    - `WEB_DOMAIN` — your domain (e.g. `example.com`)
+    - `API_ROOT` — full public URL of the API (e.g. `https://example.com/api/v1`)
+    - The `images` section with your registry URLs for the custom Postgres image
+    - The Ingress host patch at the bottom of the file
+
+    ```yaml
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+
+    namespace: peermetrics
+
+    resources:
+      - ../../base
+
+    generatorOptions:
+      disableNameSuffixHash: true
+
+    images:
+      - name: peermetrics/api
+        newTag: latest
+      - name: peermetrics/web
+        newTag: latest
+      - name: ghcr.io/your-org/peermetrics-postgres
+        # Replace with your registry. If Peermetrics publishes an official image, use that instead.
+        newName: your-registry.example.com/peermetrics-postgres
+        newTag: 12.8-pgtrgm
+
+    configMapGenerator:
+      - name: peermetrics-api-config
+        behavior: replace
+        literals:
+          - DEBUG=False
+          - DJANGO_SETTINGS_MODULE=api.settings
+          - WEB_DOMAIN=example.com
+          - POST_CONFERENCE_CLEANUP=True
+          - CONN_MAX_AGE=14400
+          - DATABASE_HOST=postgres
+          - DATABASE_PORT=5432
+          - DATABASE_NAME=peerdb
+          - REDIS_HOST=redis://redis:6379
+          - DEFAULT_ADMIN_USERNAME=admin
+          - DEFAULT_ADMIN_EMAIL=admin@admin.com
+      - name: peermetrics-web-config
+        behavior: replace
+        literals:
+          - DEBUG=False
+          - DJANGO_SETTINGS_MODULE=web.settings
+          - API_ROOT=https://example.com/api/v1
+          - CONN_MAX_AGE=14400
+          - DATABASE_HOST=postgres
+          - DATABASE_PORT=5432
+          - DATABASE_NAME=peerdb
+
+    secretGenerator:
+      - name: peermetrics-secrets
+        behavior: replace
+        envs:
+          - secrets.env
+
+    patches:
+      - target:
+          kind: Ingress
+          name: peermetrics-ingress
+        patch: |-
+          - op: replace
+            path: /spec/rules/0/host
+            value: example.com
+    ```
+  </Step>
+
+  <Step title="Generate secrets">
+    Copy the example secrets file and populate it with strong random values:
+
+    ```bash
+    cp k8s/overlays/your-env/secrets.env.example k8s/overlays/your-env/secrets.env
+    ```
+
+    Use the helper script to generate secrets automatically:
+
+    ```bash
+    k8s/scripts/generate_secrets_env.sh --output k8s/overlays/your-env/secrets.env
+    ```
+
+    The `secrets.env` file must contain:
+
+    ```bash
+    SECRET_KEY=replace-me
+    INIT_TOKEN_SECRET=replace-me
+    SESSION_TOKEN_SECRET=replace-me
+    DEFAULT_ADMIN_PASSWORD=replace-me
+    DATABASE_USER=peeruser
+    DATABASE_PASSWORD=peeruser
+    ```
+
+    <Warning>
+      Do not commit `secrets.env` to version control. Add it to `.gitignore`.
+    </Warning>
+  </Step>
+
+  <Step title="Apply the overlay">
+    ```bash
+    kubectl apply -k k8s/overlays/your-env
+    ```
+
+    Kustomize builds the full manifest set from base + overlay and applies it to your cluster.
+  </Step>
+</Steps>
+
+## Ingress routing
+
+The base `ingress.yaml` uses ALB annotations and routes traffic on a single host:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: peermetrics-ingress
+  namespace: peermetrics
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+spec:
+  ingressClassName: alb
+  rules:
+    - host: peermetrics.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8081
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080
+```
+
+## CloudFront path-based routing
+
+If you front the cluster with CloudFront and want to serve Peermetrics under a subpath (e.g. `/peermetrics`), choose one of two approaches.
+
+<Tabs>
+  <Tab title="Option A: Rewrite at the edge (recommended with ALB)">
+    - Set a CloudFront behavior with `Path pattern` = `/peermetrics/*` pointing to your ALB/Ingress origin.
+    - Use a CloudFront Function or Lambda@Edge (viewer request) to strip the `/peermetrics` prefix before forwarding to ALB.
+    - The Ingress only needs `/v1` and `/` style paths. ALB does not support server-side path rewrites.
+
+    <Note>
+      Ensure `API_ROOT` matches the external URL, e.g. `https://your-cloudfront-domain/peermetrics/api/v1`.
+    </Note>
+  </Tab>
+  <Tab title="Option B: Rewrite inside the cluster (NGINX Ingress)">
+    - Set a CloudFront behavior with `Path pattern` = `/peermetrics/*` pointing to your NGINX Ingress origin.
+    - Use NGINX Ingress annotations to rewrite `/peermetrics/api` → `/api` and `/peermetrics` → `/` within the cluster.
+
+    <Note>
+      If your API only serves `/v1`, keep the ingress path at `/v1` or strip `/api` at the edge so the app still receives `/v1`.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Operational notes
+
+### Database migrations
+
+The `peermetrics-migrate` Job runs `python manage.py migrate` and `python manage.py collectstatic` once per apply. When you roll out schema changes, delete the completed Job and re-apply to run it again:
+
+```bash
+kubectl delete job peermetrics-migrate -n peermetrics
+kubectl apply -k k8s/overlays/your-env
+```
+
+### Scaling
+
+The API and web services scale independently. Increase replicas directly or use a HorizontalPodAutoscaler:
+
+```bash
+kubectl scale deployment peermetrics-api --replicas=4 -n peermetrics
+kubectl scale deployment peermetrics-web --replicas=2 -n peermetrics
+```
+
+### Default credentials
+
+Change `DEFAULT_ADMIN_PASSWORD` in `secrets.env` before your first production deployment. The admin user is created only once on first startup.

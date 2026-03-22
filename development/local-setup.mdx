@@ -1,0 +1,273 @@
+---
+title: 'Local development setup'
+description: Set up a local Peermetrics development environment for contributing or customizing
+---
+
+The development setup builds both the `api` and `web` services from local source code rather than pulling pre-built images from Docker Hub. This gives you hot-reloading, access to the `populate_db.py` script, and the ability to modify code and see changes without rebuilding images.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Node.js](https://nodejs.org/) (for the VueJS watcher)
+- Git
+
+## Setup
+
+<Steps>
+  <Step title="Clone the main repo">
+    Clone the `peermetrics` repository and enter the directory:
+
+    ```bash
+    git clone https://github.com/peermetrics/peermetrics && cd peermetrics
+    ```
+  </Step>
+
+  <Step title="Clone the API repo">
+    Clone the `api` service repository into the same parent directory as `peermetrics`:
+
+    ```bash
+    git clone https://github.com/peermetrics/api
+    ```
+  </Step>
+
+  <Step title="Clone the web repo">
+    Clone the `web` service repository into the same parent directory:
+
+    ```bash
+    git clone https://github.com/peermetrics/web
+    ```
+
+    Your directory layout should look like this:
+
+    ```text
+    parent-directory/
+    ├── peermetrics/
+    ├── api/
+    └── web/
+    ```
+  </Step>
+
+  <Step title="Start Docker in dev mode">
+    From inside the `peermetrics` directory, start all services using the development Compose file:
+
+    ```bash
+    docker compose -f docker-compose.dev.yaml up
+    ```
+
+    <Note>
+    The dev setup automatically runs database migrations and creates the default admin user (`admin` / `admin`) on first start. You do not need to trigger migrations manually for a fresh environment.
+    </Note>
+
+    The following services will start:
+
+    | Service | Description | Port |
+    | --- | --- | --- |
+    | `nginx` | Reverse proxy routing traffic to api and web | 8080, 8081 |
+    | `web` | Django visualization service | 8080 (internal) |
+    | `api` | Django ingestion service | 8081 (internal) |
+    | `postgres` | PostgreSQL database | 5432 |
+    | `redis` | Redis cache and session store | 6379 |
+  </Step>
+
+  <Step title="Start the VueJS watcher">
+    In a separate terminal, install dependencies and start the file watcher for the `web` frontend:
+
+    ```bash
+    cd web
+    npm install
+    npm run watch
+    ```
+
+    The watcher rebuilds the VueJS bundles whenever you edit frontend source files. Keep this terminal running alongside Docker.
+  </Step>
+</Steps>
+
+## Running DB migrations during development
+
+If you modify a Django model, you need to generate and apply a new migration:
+
+```bash
+docker compose -f docker-compose.dev.yaml exec api python manage.py makemigrations app
+docker compose -f docker-compose.dev.yaml exec api python manage.py migrate
+```
+
+Use `exec` (not `run`) so the command runs inside the already-running container, sharing the live database connection and source volume mount.
+
+See [Database migrations](/operations/db-migrations) for more detail.
+
+## CSS compilation
+
+The `web` service uses a separate CSS build step. From inside the `web` directory:
+
+- Compile CSS once:
+
+  ```bash
+  npm run css
+  ```
+
+- Start the CSS watcher (rebuilds on every change):
+
+  ```bash
+  npm run css-watch
+  ```
+
+The dev Compose file runs `npm run css` automatically on startup, so you only need these commands if you are actively editing stylesheets.
+
+## Dev docker-compose.yaml
+
+Below is the full `docker-compose.dev.yaml` for reference:
+
+```yaml
+services:
+  nginx:
+    build: ./nginx
+    image: peermetrics/nginx:dev
+    ports:
+      - 8080:8080
+      - 8081:8081
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./web/static:/app/web
+      - ./api/static:/app/api
+      - ./web/node_modules:/app/node_modules
+      - ./test:/app/test:ro
+    depends_on:
+      - api
+      - web
+    restart: "on-failure"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    image: peermetrics/web:dev
+    command: sh -c "npm install --no-audit --no-fund && npm run css && npm run build-dev && exec gunicorn web.wsgi:application --bind 0.0.0.0:8080 --log-level debug --reload"
+    working_dir: /app
+    volumes:
+      - ./web:/app
+    expose:
+      - 8080
+    environment:
+      DEBUG: "True"
+      APP_PORT: "8080"
+      DJANGO_SETTINGS_MODULE: "web.settings"
+      SECRET_KEY: "secret"
+      DEFAULT_ADMIN_PASSWORD: "admin"
+      API_ROOT: "http://localhost:8081/v1"
+      URL_PREFIX: ""  # e.g. "/peermetrics" for subpath; nginx must have matching locations
+      DATABASE_HOST: "postgres"
+      DATABASE_PORT: "5432"
+      DATABASE_USER: "peeruser"
+      DATABASE_PASSWORD: "peeruser"
+      DATABASE_NAME: "peerdb"
+      CONN_MAX_AGE: "14400"
+    depends_on:
+      - postgres
+      - redis
+    restart: "on-failure"
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    image: peermetrics/api:dev
+    working_dir: /app
+    volumes:
+      - ./api:/app
+    expose:
+      - 8081
+    environment:
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: "api.settings"
+      SECRET_KEY: "secret"
+      DEFAULT_ADMIN_USERNAME: "admin"
+      DEFAULT_ADMIN_PASSWORD: "admin"
+      DEFAULT_ADMIN_EMAIL: "admin@admin.com"
+      INIT_TOKEN_SECRET: "supersecret"
+      SESSION_TOKEN_SECRET: "secret"
+      WEB_DOMAIN: "localhost:8080"
+      REDIS_HOST: "redis://127.0.0.1:6379"
+      DATABASE_HOST: "postgres"
+      DATABASE_PORT: "5432"
+      DATABASE_USER: "peeruser"
+      DATABASE_PASSWORD: "peeruser"
+      DATABASE_NAME: "peerdb"
+      CONN_MAX_AGE: "14400"
+      POST_CONFERENCE_CLEANUP: "False"
+    depends_on:
+      - postgres
+      - redis
+    restart: "on-failure"
+
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_PASSWORD: peeruser
+      POSTGRES_USER: peeruser
+      POSTGRES_DB: peerdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    restart: always
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## Environment variables in dev mode
+
+The dev Compose file sets the following environment variables by default:
+
+### API service
+
+| Variable | Dev default | Description |
+| --- | --- | --- |
+| `DEBUG` | `True` | Enables Django debug mode and detailed error pages |
+| `SECRET_KEY` | `secret` | Django secret key — change before production |
+| `DEFAULT_ADMIN_USERNAME` | `admin` | Username for the auto-created admin account |
+| `DEFAULT_ADMIN_PASSWORD` | `admin` | Password for the auto-created admin account |
+| `DEFAULT_ADMIN_EMAIL` | `admin@admin.com` | Email for the auto-created admin account |
+| `INIT_TOKEN_SECRET` | `supersecret` | Used to generate JWT tokens |
+| `SESSION_TOKEN_SECRET` | `secret` | Used to encrypt session cookies |
+| `WEB_DOMAIN` | `localhost:8080` | Domain of the web service |
+| `REDIS_HOST` | `redis://127.0.0.1:6379` | Redis connection URL |
+| `POST_CONFERENCE_CLEANUP` | `False` | Disabled in dev to retain raw stats events |
+
+### Web service
+
+| Variable | Dev default | Description |
+| --- | --- | --- |
+| `DEBUG` | `True` | Enables Django debug mode |
+| `API_ROOT` | `http://localhost:8081/v1` | URL of the API service |
+| `URL_PREFIX` | `` (empty) | Subpath prefix if serving under a path like `/peermetrics` |
+| `DEFAULT_ADMIN_PASSWORD` | `admin` | Must match the API service value for password-change detection |
+
+<Warning>
+Never use these dev defaults in a production deployment. Change `SECRET_KEY`, `INIT_TOKEN_SECRET`, `SESSION_TOKEN_SECRET`, and all admin credentials before going live.
+</Warning>
+
+## Generating test data
+
+<Tip>
+Use the `populate_db.py` script to seed your local database with realistic conferences, participants, and events. This is useful for exploring dashboards without a live WebRTC integration.
+
+```bash
+docker compose -f docker-compose.dev.yaml run api python populate_db.py 5
+```
+
+The argument is the number of past days to populate. See [Populating dummy data](/operations/dummy-data) for details.
+</Tip>

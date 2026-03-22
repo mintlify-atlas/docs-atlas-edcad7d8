@@ -1,0 +1,108 @@
+---
+title: 'Architecture'
+description: How Peermetrics components fit together
+---
+
+Peermetrics consists of three components that work together: a JavaScript SDK that runs in the browser, an API service that ingests the metrics, and a web service that visualizes them. This page explains how they fit together and why they are structured the way they are.
+
+## Components
+
+<CardGroup cols={2}>
+  <Card title="JavaScript SDK" icon="code">
+    Runs in the browser alongside your WebRTC application. Attaches to `RTCPeerConnection` objects and collects stats, events, and connection lifecycle data. Sends that data to the API service over HTTP. Supports Livekit, Mediasoup, Janus, and custom implementations.
+  </Card>
+
+  <Card title="API service" icon="server">
+    A Django application that receives metric data from SDK clients and writes it to PostgreSQL. Exposes a versioned REST API at `/v1`. Also hosts the Django admin panel for debugging conferences and events. Available as `peermetrics/api` on Docker Hub.
+  </Card>
+
+  <Card title="Web service" icon="chart-bar">
+    A Django application that reads data from PostgreSQL and renders the monitoring dashboards. Serves the app overview, participant details, connection timelines, and issue detection views. Available as `peermetrics/web` on Docker Hub.
+  </Card>
+
+  <Card title="nginx" icon="arrows-left-right">
+    A reverse proxy that routes incoming traffic to the correct service based on port. Port 8080 routes to the web service; port 8081 routes to the API service. Also serves static files and the WebRTC test tool.
+  </Card>
+</CardGroup>
+
+## Why API and web are separate services
+
+The `api` and `web` services have different scaling needs:
+
+- **`api`** scales with the number of concurrent WebRTC participants. Every active call generates a continuous stream of stats events. During peak usage, the API service receives a high volume of write-heavy requests.
+- **`web`** scales with the number of people viewing dashboards. This is typically a small team, and the load is read-heavy and much lower in volume.
+
+Separating them means you can scale the API service horizontally to handle ingestion load without also scaling the web service, and vice versa.
+
+## Data flow
+
+Data moves through the system in one direction:
+
+```text
+Browser client
+    └─► JavaScript SDK
+            └─► POST /v1/... (HTTP)
+                    └─► API service (Django)
+                            └─► PostgreSQL (metrics storage)
+                            └─► Redis (caching, sessions)
+
+Dashboard user
+    └─► Browser request
+            └─► Web service (Django)
+                    └─► PostgreSQL (read metrics)
+                            └─► Dashboard views
+```
+
+1. The JavaScript SDK collects `RTCPeerConnection` statistics at regular intervals during an active call.
+2. The SDK sends batched events to the API service endpoint you configure as `apiRoot` (e.g. `https://api.example.com/v1`).
+3. The API service validates the request using the API key, then writes the data to PostgreSQL using the `GenericEvent` model.
+4. When a conference ends, the API service processes the accumulated `stats` events into a summary and optionally deletes the raw events (see `POST_CONFERENCE_CLEANUP`).
+5. The web service reads from the same PostgreSQL database and renders the dashboards on demand.
+
+## Tech stack
+
+Both `api` and `web` share the same backend technology:
+
+| Layer | Technology |
+| --- | --- |
+| Language | Python 3.8 |
+| Framework | Django |
+| Database | PostgreSQL |
+| Template rendering | Jinja2 |
+| Frontend | VueJS |
+| Cache / sessions | Redis |
+| Reverse proxy | nginx |
+
+## Ports
+
+| Port | Service | Description |
+| --- | --- | --- |
+| `8080` | web | Dashboard UI — accessed by your team |
+| `8081` | api | Ingestion endpoint — called by the SDK |
+| `5432` | postgres | PostgreSQL — internal only |
+| `6379` | redis | Redis — internal only |
+
+nginx listens on ports 8080 and 8081 and proxies requests to the appropriate internal service.
+
+## Storage
+
+### PostgreSQL
+
+PostgreSQL stores all metric data. The core data model is `GenericEvent`, which captures every event type emitted during a conference — connection lifecycle events, quality alerts, and per-second `stats` snapshots from `RTCPeerConnection.getStats()`.
+
+At the end of a conference, the API service walks the `stats` events to produce a summary (bitrate trends, packet loss averages, jitter distributions, etc.). The raw `stats` events represent the largest share of storage; the `POST_CONFERENCE_CLEANUP` flag controls whether they are kept or discarded after summarization.
+
+### Redis
+
+Redis is used for session storage and caching. It is not the primary data store — all persistent metric data lives in PostgreSQL.
+
+## Networking
+
+nginx acts as the entry point for all external traffic:
+
+- Requests to port **8080** are forwarded to the `web` service.
+- Requests to port **8081** are forwarded to the `api` service.
+- Static assets (CSS, JavaScript, images) are served directly by nginx from mounted volumes.
+- The WebRTC test tool at `/test/webrtc-test.html` is served from a read-only volume mount of the `test/` directory.
+
+In production, you would typically place a load balancer or cloud edge (e.g. CloudFront, ALB) in front of nginx to handle TLS termination and distribute traffic across multiple instances.

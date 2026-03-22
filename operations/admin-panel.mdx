@@ -1,0 +1,83 @@
+---
+title: 'API admin panel'
+description: Access the Django admin panel to inspect and debug conferences and events
+---
+
+The `api` service includes a Django admin panel at `/admin`. It gives you direct read/write access to every model in the database and is useful for debugging conference data, inspecting events, managing API keys, and administering organizations.
+
+<Note>
+The admin panel requires static files to be collected before it will render correctly. Make sure you run `collectstatic` as part of the setup steps below.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Open a shell inside the API container">
+    Use `docker compose run` to start a one-off container with an interactive shell:
+
+    ```bash
+    docker compose run api sh
+    ```
+  </Step>
+
+  <Step title="Create a superuser">
+    Inside the container shell, run the `createsuperuser` management command. You will be prompted to set a password:
+
+    ```bash
+    python manage.py createsuperuser --username admin --email admin@admin.com
+    ```
+
+    Choose a strong password when prompted. This account is separate from the default application user.
+  </Step>
+
+  <Step title="Collect static files">
+    The admin panel's CSS and JS must be gathered into the static files directory:
+
+    ```bash
+    python manage.py collectstatic --clear --noinput
+    ```
+
+    The `--clear` flag removes any previously collected files before writing new ones.
+  </Step>
+
+  <Step title="Exit the container shell">
+    ```bash
+    exit
+    ```
+  </Step>
+
+  <Step title="Access the admin panel">
+    Navigate to the admin panel in your browser at the API service URL with `/admin` appended.
+
+    For a default local setup:
+
+    ```
+    http://localhost:8081/admin
+    ```
+
+    Log in with the superuser credentials you created in step 2.
+  </Step>
+</Steps>
+
+## What you can inspect
+
+The admin panel exposes all core models. Common use cases:
+
+| Model | Use case |
+| --- | --- |
+| Conferences | List all sessions, inspect metadata, manually close stuck conferences |
+| Participants | View per-participant records, connection details, and device info |
+| Events | Browse raw events ingested from the SDK, filtered by conference or participant |
+| Stats | Inspect aggregated WebRTC statistics for each participant connection |
+| API keys | View, create, or revoke API keys associated with applications |
+| Organizations | Manage organization records and their linked applications |
+
+## Re-running collectstatic
+
+If you upgrade the API service image, run `collectstatic` again to pick up any new or changed admin assets:
+
+```bash
+docker compose run api python manage.py collectstatic --clear --noinput
+```
+
+On Kubernetes, `collectstatic` is included in the migration Job and runs automatically alongside `migrate`.

@@ -1,0 +1,163 @@
+---
+title: "Environment variables"
+description: "Complete reference for all Peermetrics environment variables."
+---
+
+<Warning>
+  Change these secrets before your first production deployment. The defaults are intentionally weak and must not be used in production:
+
+  - `SECRET_KEY`
+  - `DEFAULT_ADMIN_PASSWORD`
+  - `INIT_TOKEN_SECRET`
+  - `SESSION_TOKEN_SECRET`
+</Warning>
+
+<Tabs>
+  <Tab title="API service">
+    The API service (`peermetrics/api`) is the metric ingestion endpoint. It also creates the default admin user on first startup.
+
+    <ParamField path="DEBUG" type="string" default="False">
+      Enable Django debug mode. Set to `"False"` in production. Setting this to `"True"` exposes stack traces in HTTP responses.
+    </ParamField>
+
+    <ParamField path="DJANGO_SETTINGS_MODULE" type="string" default="api.settings">
+      Django settings module. Use `"api.settings"` for the API service. Do not change this value.
+    </ParamField>
+
+    <ParamField path="SECRET_KEY" type="string" required>
+      Django secret key used for cryptographic signing. Change this to a long, random string in production.
+    </ParamField>
+
+    <ParamField path="DEFAULT_ADMIN_USERNAME" type="string" default="admin">
+      Username for the admin account created automatically on first startup.
+    </ParamField>
+
+    <ParamField path="DEFAULT_ADMIN_PASSWORD" type="string" required>
+      Password for the auto-created admin account. Change this in production. Must match the value set in the web service.
+    </ParamField>
+
+    <ParamField path="DEFAULT_ADMIN_EMAIL" type="string" default="admin@admin.com">
+      Email address for the auto-created admin account.
+    </ParamField>
+
+    <ParamField path="INIT_TOKEN_SECRET" type="string" required>
+      Secret used to generate JWT tokens for SDK authentication. Change this to a long, random string in production.
+    </ParamField>
+
+    <ParamField path="SESSION_TOKEN_SECRET" type="string" required>
+      Secret used to encrypt session cookies. Change this to a long, random string in production.
+    </ParamField>
+
+    <ParamField path="WEB_DOMAIN" type="string" default="localhost:8080">
+      Hostname (and optional port) of the web service, for example `localhost:8080` or `app.example.com`. Used to generate cross-service links.
+    </ParamField>
+
+    <ParamField path="URL_PREFIX" type="string" default="">
+      Subpath prefix when serving under a non-root path, for example `/peermetrics`. The nginx configuration must have matching location blocks. Leave empty when serving from the root.
+    </ParamField>
+
+    <ParamField path="REDIS_HOST" type="string" default="redis://127.0.0.1:6379">
+      Redis connection URL. Update this to point to your Redis instance when it is not running on localhost.
+    </ParamField>
+
+    <ParamField path="DATABASE_HOST" type="string">
+      PostgreSQL hostname or IP address.
+    </ParamField>
+
+    <ParamField path="DATABASE_PORT" type="string" default="5432">
+      PostgreSQL port.
+    </ParamField>
+
+    <ParamField path="DATABASE_USER" type="string">
+      PostgreSQL username.
+    </ParamField>
+
+    <ParamField path="DATABASE_PASSWORD" type="string">
+      PostgreSQL password.
+    </ParamField>
+
+    <ParamField path="DATABASE_NAME" type="string">
+      PostgreSQL database name.
+    </ParamField>
+
+    <ParamField path="CONN_MAX_AGE" type="string" default="14400">
+      Django database connection max age in seconds. Persistent connections reduce overhead by reusing database connections. The default of `14400` (4 hours) is suitable for most deployments.
+    </ParamField>
+
+    <ParamField path="POST_CONFERENCE_CLEANUP" type="string" default="True">
+      Delete raw `stats` events after a conference ends. The API summarizes these events into an aggregate at the end of each conference, so the raw events are no longer needed. Set to `"True"` to save storage. See the [FAQ](/reference/faq) for details.
+    </ParamField>
+
+    <ParamField path="USE_GOOGLE_CLOUD_LOGGING" type="string">
+      Enable Google Cloud Logging. Set to `"True"` when deploying to Google App Engine or any environment where you want logs forwarded to Cloud Logging. Optional.
+    </ParamField>
+
+    <ParamField path="USE_GOOGLE_TASK_QUEUE" type="string">
+      Use Google Cloud Tasks instead of the default task queue. Set to `"True"` when deploying to App Engine. Optional.
+    </ParamField>
+
+    <ParamField path="GOOGLE_TASK_QUEUE_NAME" type="string">
+      The name of the Cloud Tasks queue to use, for example `queue-1`. Required when `USE_GOOGLE_TASK_QUEUE` is `"True"`.
+    </ParamField>
+
+    <ParamField path="APP_ENGINE_LOCATION" type="string">
+      The App Engine region where the app is deployed, for example `us-east1`. Required when `USE_GOOGLE_TASK_QUEUE` is `"True"`.
+    </ParamField>
+
+    <ParamField path="TASK_QUEUE_DOMAIN" type="string">
+      The base URL that Cloud Tasks will use when calling the API, for example `https://api.example.com/`. Must end with a trailing slash. Required when `USE_GOOGLE_TASK_QUEUE` is `"True"`.
+    </ParamField>
+  </Tab>
+
+  <Tab title="Web service">
+    The web service (`peermetrics/web`) serves the dashboard UI. It reads from the same PostgreSQL database and communicates with the API service over HTTP.
+
+    <ParamField path="DEBUG" type="string" default="False">
+      Enable Django debug mode. Set to `"False"` in production. Setting this to `"True"` exposes stack traces in HTTP responses.
+    </ParamField>
+
+    <ParamField path="DJANGO_SETTINGS_MODULE" type="string" default="web.settings">
+      Django settings module. Use `"web.settings"` for the web service. Do not change this value.
+    </ParamField>
+
+    <ParamField path="SECRET_KEY" type="string" required>
+      Django secret key used for cryptographic signing. Change this to a long, random string in production.
+    </ParamField>
+
+    <ParamField path="DEFAULT_ADMIN_PASSWORD" type="string" required>
+      Used to detect whether the admin is still using the default password on login. Must be identical to the `DEFAULT_ADMIN_PASSWORD` value set in the API service. Change this in production.
+    </ParamField>
+
+    <ParamField path="API_ROOT" type="string" required>
+      Full URL of the API service including the `/v1` path suffix, for example `http://localhost:8081/v1` or `https://api.example.com/v1`. The URL must end with `/v1`.
+    </ParamField>
+
+    <ParamField path="URL_PREFIX" type="string" default="">
+      Subpath prefix when serving under a non-root path, for example `/peermetrics`. Must match the value in the API service and the nginx configuration. Leave empty when serving from the root.
+    </ParamField>
+
+    <ParamField path="DATABASE_HOST" type="string">
+      PostgreSQL hostname or IP address. Use the same database as the API service.
+    </ParamField>
+
+    <ParamField path="DATABASE_PORT" type="string" default="5432">
+      PostgreSQL port.
+    </ParamField>
+
+    <ParamField path="DATABASE_USER" type="string">
+      PostgreSQL username.
+    </ParamField>
+
+    <ParamField path="DATABASE_PASSWORD" type="string">
+      PostgreSQL password.
+    </ParamField>
+
+    <ParamField path="DATABASE_NAME" type="string">
+      PostgreSQL database name.
+    </ParamField>
+
+    <ParamField path="CONN_MAX_AGE" type="string" default="14400">
+      Django database connection max age in seconds. The default of `14400` (4 hours) is suitable for most deployments.
+    </ParamField>
+  </Tab>
+</Tabs>

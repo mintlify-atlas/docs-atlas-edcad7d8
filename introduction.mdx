@@ -1,0 +1,61 @@
+---
+title: Introduction
+description: WebRTC monitoring made easy — self-hosted, open source, and built for developers.
+---
+
+# Peermetrics
+
+Peermetrics is a self-hosted WebRTC monitoring system that helps you understand how your users experience real-time audio and video calls. It collects metrics from client devices via a JavaScript SDK, ingests them through a dedicated API service, and visualizes them in a rich web dashboard.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Deploy Peermetrics and connect your first WebRTC app in minutes
+  </Card>
+  <Card title="How it works" icon="diagram-project" href="/how-it-works">
+    Understand the architecture: SDK, API service, and web dashboard
+  </Card>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Run Peermetrics with Docker Compose on any server
+  </Card>
+  <Card title="JavaScript SDK" icon="js" href="/integration/javascript-sdk">
+    Integrate the SDK with Livekit, Mediasoup, Janus, or custom WebRTC
+  </Card>
+</CardGroup>
+
+## What Peermetrics gives you
+
+### App dashboard
+
+Get a bird's-eye view of how your users experience your application. See breakdowns by browser, operating system, and location alongside automatically detected issues — so you know exactly where to focus.
+
+### Participant details
+
+Drill into any individual participant to see how they connected, what devices they used, and which issues were automatically detected during their call.
+
+### Connection timelines
+
+Step through the full lifecycle of a WebRTC connection. Visualize bitrate, packet loss, jitter, and other stats over time to pinpoint exactly when and why things went wrong.
+
+## Key features
+
+- **Automatic issue detection** — Peermetrics flags common WebRTC problems without manual configuration
+- **JavaScript SDK** — works with [Livekit](https://livekit.io/), [Mediasoup](https://mediasoup.org/), [Janus](https://janus.conf.meetecho.com/), and custom WebRTC implementations
+- **Separate scalable services** — the API (ingestion) and web (visualization) services scale independently
+- **Self-hosted** — you own your data; deploy on Docker, Kubernetes, or Google App Engine
+- **Open source** — MIT licensed; full source available on [GitHub](https://github.com/peermetrics/peermetrics)
+
+## Components
+
+Peermetrics is made up of three components that work together:
+
+| Component | Repository | Purpose |
+|-----------|-----------|---------|
+| **JavaScript SDK** | [peermetrics/sdk-js](https://github.com/peermetrics/sdk-js) | Collects metrics from client browsers |
+| **API service** | [peermetrics/api](https://github.com/peermetrics/api) | Ingests and stores metrics from the SDK |
+| **Web service** | [peermetrics/web](https://github.com/peermetrics/web) | Visualizes stored metrics in a dashboard |
+
+This repository (`peermetrics/peermetrics`) provides the Docker Compose and Kubernetes manifests to run all three components together.
+
+## Try the demo
+
+See Peermetrics in action at [peermetrics.io/how-it-works](https://peermetrics.io/how-it-works) before deploying your own instance.

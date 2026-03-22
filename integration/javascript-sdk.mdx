@@ -1,0 +1,173 @@
+---
+title: "JavaScript SDK"
+description: "Integrate the Peermetrics JavaScript SDK with your WebRTC application"
+---
+
+The [Peermetrics JavaScript SDK](https://github.com/peermetrics/sdk-js) collects WebRTC metrics from your application and sends them to your self-hosted API service. It supports Livekit, Mediasoup, Janus, and custom WebRTC implementations.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @peermetrics/sdk
+```
+
+```html CDN
+<script src="https://cdn.peermetrics.io/js/sdk/peermetrics.min.js"></script>
+```
+
+</CodeGroup>
+
+## Initialization
+
+Create a `PeerMetrics` instance at the start of each conference session. You must call `initialize()` before adding any peer connections.
+
+```javascript
+let peerMetrics = new PeerMetrics({
+    apiRoot: 'https://api.example.com/v1',
+    apiKey: '7090df95cd247f4aa735779636b202',
+    userId: '1234',
+    userName: 'My user',
+    conferenceId: 'conference-1',
+    conferenceName: 'Conference from 4pm',
+    appVersion: '1.0.1'
+})
+
+await peerMetrics.initialize()
+```
+
+<Warning>
+  `apiRoot` must be a valid URL and must end with `/v1`. For example: `https://api.example.com/v1` or `http://localhost:8081/v1`.
+</Warning>
+
+### Constructor parameters
+
+<ParamField path="apiRoot" type="string" required>
+  Base URL of your deployed API service. Must end with `/v1`. When running locally, use `http://localhost:8081/v1`.
+</ParamField>
+
+<ParamField path="apiKey" type="string" required>
+  API key from your Peermetrics app dashboard. Each app has its own unique key. See [Managing API keys](/integration/api-key).
+</ParamField>
+
+<ParamField path="userId" type="string" required>
+  Unique identifier for the user joining the conference. Used to track per-user metrics and connection history.
+</ParamField>
+
+<ParamField path="userName" type="string">
+  Display name for the user. Shown in the dashboard alongside connection data.
+</ParamField>
+
+<ParamField path="conferenceId" type="string" required>
+  Unique identifier for the conference or call. All participants in the same call should share the same `conferenceId`.
+</ParamField>
+
+<ParamField path="conferenceName" type="string">
+  Human-readable name for the conference. Displayed in the dashboard when browsing conference history.
+</ParamField>
+
+<ParamField path="appVersion" type="string">
+  Version of your application. Useful for correlating metrics with specific releases when investigating regressions.
+</ParamField>
+
+## Adding peer connections
+
+After initializing, register each `RTCPeerConnection` with the SDK so it can start collecting stats:
+
+```javascript
+peerMetrics.addConnection({
+    pc: peerConnection,
+    peerId: 'remote-peer-id'
+})
+```
+
+Call `addConnection` for every peer connection in your application. The `peerId` identifies the remote participant.
+
+## Ending a conference
+
+When the call ends, signal the SDK to flush any remaining metrics and close the session:
+
+```javascript
+await peerMetrics.endConference()
+```
+
+## Supported frameworks
+
+The SDK integrates with all major WebRTC frameworks and custom implementations.
+
+<Columns cols={2}>
+  <Card title="Livekit" icon="circle-play">
+    Use the SDK alongside the Livekit client SDK to monitor rooms and participant connections.
+  </Card>
+  <Card title="Mediasoup" icon="circle-play">
+    Monitor mediasoup `Transport` objects by wrapping the underlying peer connections.
+  </Card>
+  <Card title="Janus" icon="circle-play">
+    Track Janus WebRTC connections and gateway-level metrics.
+  </Card>
+  <Card title="Custom WebRTC" icon="code">
+    Works with any application that creates `RTCPeerConnection` objects directly.
+  </Card>
+</Columns>
+
+For framework-specific integration guides and advanced configuration options, see the [SDK repository on GitHub](https://github.com/peermetrics/sdk-js).
+
+## Testing your integration
+
+Peermetrics includes a built-in test tool that lets you verify your setup without modifying your application.
+
+<Steps>
+  <Step title="Start your services">
+    Make sure your Peermetrics stack is running:
+
+    ```bash
+    docker compose up
+    ```
+  </Step>
+
+  <Step title="Open the test tool">
+    Navigate to the test page served by nginx:
+
+    **[http://localhost:8080/test/webrtc-test.html](http://localhost:8080/test/webrtc-test.html)**
+  </Step>
+
+  <Step title="Enter your configuration">
+    Fill in the form fields:
+
+    - **API Root**: `http://localhost:8081/v1`
+    - **API Key**: paste the key from your app dashboard
+    - Optionally adjust the User ID, Conference ID, and other fields
+  </Step>
+
+  <Step title="Start a test call">
+    Click **Start Test Call**. The tool will:
+
+    1. Request camera and microphone permissions (it falls back to audio-only or a data channel if media is unavailable)
+    2. Create a local WebRTC peer-to-peer connection
+    3. Initialize the Peermetrics SDK and begin sending metrics
+
+    Watch the log panel for status messages. A green status indicator means metrics are actively being collected.
+  </Step>
+
+  <Step title="View the metrics">
+    Open the dashboard at **[http://localhost:8080](http://localhost:8080)** in another tab and navigate to your app. You should see the test conference and participant data appear.
+  </Step>
+
+  <Step title="Stop the call">
+    Click **Stop Call**. The tool calls `peerMetrics.endConference()` and closes the peer connections.
+  </Step>
+</Steps>
+
+<Tip>
+  The test tool works even if no camera or microphone is available. It creates a WebRTC data channel to establish a real connection so that the SDK can still collect connection-level metrics.
+</Tip>
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| "Failed to initialize PeerMetrics" | API not running on port 8081, or API key is incorrect |
+| CORS errors in browser console | `apiRoot` domain is not allowed by your API service config |
+| No video | Camera/microphone permissions not granted |
+| No data in dashboard | Check that `conferenceId` and `apiKey` match an existing app |

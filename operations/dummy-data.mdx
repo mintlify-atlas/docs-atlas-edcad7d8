@@ -1,0 +1,73 @@
+---
+title: 'Populating dummy data'
+description: Generate test data to explore Peermetrics dashboards during development
+---
+
+The `populate_db.py` script ships inside the API container and seeds your database with realistic-looking conferences, participants, events, and stats. This lets you explore the Peermetrics dashboards without needing a live WebRTC integration.
+
+<Warning>
+This script is intended for development only. Never run it against a production database — it will insert fake data that cannot easily be distinguished from real records.
+</Warning>
+
+## Prerequisites
+
+<Note>
+`populate_db.py` requires the development Compose file (`docker-compose.dev.yaml`). It relies on the local source mount at `./api` to access the script, which is not present in the production image.
+</Note>
+
+Make sure the dev stack is running before executing the script:
+
+```bash
+docker compose -f docker-compose.dev.yaml up
+```
+
+## Running the script
+
+The script accepts a single positional argument: the number of **past days** to populate with data.
+
+```bash
+docker compose -f docker-compose.dev.yaml run api python populate_db.py <days>
+```
+
+### Examples
+
+Populate data for the past day only:
+
+```bash
+docker compose -f docker-compose.dev.yaml run api python populate_db.py 1
+```
+
+Populate data for the past 5 days (good default for exploring dashboards):
+
+```bash
+docker compose -f docker-compose.dev.yaml run api python populate_db.py 5
+```
+
+Populate a full month of historical data:
+
+```bash
+docker compose -f docker-compose.dev.yaml run api python populate_db.py 30
+```
+
+## What gets generated
+
+For each day in the requested range, the script creates a spread of records across the core data models:
+
+| Data type | Description |
+| --- | --- |
+| Conferences | Individual call sessions distributed across the time range |
+| Participants | Users who joined each conference, with browser and OS metadata |
+| Events | Connection events, quality events, and lifecycle markers per participant |
+| Stats | Per-second WebRTC statistics (bitrate, packet loss, jitter, etc.) per participant |
+
+The generated data is designed to trigger the same processing pipelines as real SDK data, so dashboards, timelines, and issue detection all function normally.
+
+## Choosing a day count
+
+| Days | Use case |
+| --- | --- |
+| `1` | Quick sanity check after a fresh install |
+| `5` | Default — enough data to explore trends and the app dashboard |
+| `30` | Load testing the UI or demonstrating historical charts |
+
+Larger day counts generate significantly more rows. For very large values (e.g. `90`+), expect the script to take several minutes and consume more disk space in the PostgreSQL volume.

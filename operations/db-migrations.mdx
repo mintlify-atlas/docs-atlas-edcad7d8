@@ -1,0 +1,107 @@
+---
+title: 'Database migrations'
+description: Running and managing PostgreSQL database migrations for Peermetrics
+---
+
+Peermetrics uses Django's migration system to manage the PostgreSQL schema. Migrations must be run when the schema changes — for example, after upgrading the API service or modifying models in development.
+
+<Warning>
+Always back up your PostgreSQL database before running migrations in production. Migrations that alter or drop columns cannot be reversed automatically.
+</Warning>
+
+## Docker Compose
+
+### Running migrations
+
+To apply pending migrations against a running or fresh database:
+
+```bash
+docker compose run api python manage.py migrate
+```
+
+This spins up a one-off `api` container, runs all unapplied migrations, and exits.
+
+### Automatic migration on first startup (dev)
+
+When using the development Compose file, the API service runs migrations automatically on startup. You do not need to trigger this manually for a fresh environment:
+
+```bash
+docker compose -f docker-compose.dev.yaml up
+```
+
+### Creating and applying new migrations (dev)
+
+If you modify a Django model in the `app` module, you need to generate a new migration file and apply it:
+
+```bash
+docker compose -f docker-compose.dev.yaml exec api python manage.py makemigrations app
+docker compose -f docker-compose.dev.yaml exec api python manage.py migrate
+```
+
+Use `exec` (not `run`) here so the command runs inside the already-running container, sharing the same database connection and mounted source volume.
+
+## Kubernetes
+
+Migrations on Kubernetes run as a one-off `Job` defined in `k8s/base/migrate-job.yaml`. The Job uses the `peermetrics/api:latest` image and runs both the migration and static file collection:
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: peermetrics-migrate
+  namespace: peermetrics
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: peermetrics-migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: peermetrics/api:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              python manage.py migrate
+              python manage.py collectstatic --noinput
+          envFrom:
+            - configMapRef:
+                name: peermetrics-api-config
+            - secretRef:
+                name: peermetrics-secrets
+          env:
+            - name: DEFAULT_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: peermetrics-secrets
+                  key: DEFAULT_ADMIN_PASSWORD
+```
+
+Apply it with:
+
+```bash
+kubectl apply -f k8s/base/migrate-job.yaml
+```
+
+<Note>
+Kubernetes Jobs run once and are not re-triggered automatically. When you roll out a new API version that includes schema changes, you must delete the old Job and re-apply the manifest to run migrations again.
+
+```bash
+kubectl delete job peermetrics-migrate -n peermetrics
+kubectl apply -f k8s/base/migrate-job.yaml
+```
+</Note>
+
+## Migration workflow summary
+
+| Scenario | Command |
+| --- | --- |
+| Apply migrations (Docker Compose) | `docker compose run api python manage.py migrate` |
+| Generate migrations after model change (dev) | `docker compose -f docker-compose.dev.yaml exec api python manage.py makemigrations app` |
+| Apply after model change (dev) | `docker compose -f docker-compose.dev.yaml exec api python manage.py migrate` |
+| Apply migrations (Kubernetes) | `kubectl apply -f k8s/base/migrate-job.yaml` |
+| Re-run migrations after upgrade (Kubernetes) | Delete and re-apply the Job manifest |
